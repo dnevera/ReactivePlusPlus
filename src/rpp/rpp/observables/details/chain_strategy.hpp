@@ -65,7 +65,10 @@ namespace rpp
         // using operator_traits = typename TStrategy::template operator_traits<typename base::value_type>;
 
     public:
-        using expected_disposable_strategy = details::observables::fixed_disposable_strategy_selector<1>; // details::observables::deduce_updated_disposable_strategy<TStrategy, typename base::expected_disposable_strategy>;
+        template<typename... TT>
+        friend class observable_chain_strategy;
+
+        using expected_disposable_strategy = details::observables::fixed_disposable_strategy_selector<0>; // details::observables::deduce_updated_disposable_strategy<TStrategy, typename base::expected_disposable_strategy>;
         using value_type                   = int; // typename operator_traits::result_type;
 
         observable_chain_strategy(const TStrategies&... strategies)
@@ -75,7 +78,7 @@ namespace rpp
 
         template<typename TStrategy, typename ...TRest>
         observable_chain_strategy(const TStrategy& strategy, const observable_chain_strategy<TRest...>& strategies)
-            : observable_chain_strategy(strategy, strategies.m_strategies)
+            : m_strategies(strategies.m_strategies.apply([](const TStrategy& strategy, const TRest& ...r) { return rpp::utils::tuple{strategy, r...}; }, strategy))
         {
         }
 
