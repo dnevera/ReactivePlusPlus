@@ -45,7 +45,7 @@ namespace rpp::details::observables
 
 namespace rpp
 {
-    template<typename TStrategy, typename... TStrategies>
+    template<typename... TStrategies>
     class observable_chain_strategy;
 
     template<constraint::decayed_type Type, constraint::observable_strategy<Type> Strategy>
