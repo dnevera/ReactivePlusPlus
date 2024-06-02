@@ -22,14 +22,14 @@ namespace rpp
         template<typename...>
         struct internal_piping;
 
-        template<rpp::constraint::observer TObserver, typename TStrategy>
+        template<rpp::constraint::observer TObserver, rpp::constraint::operator_subscribe<rpp::utils::extract_observer_type_t<TObserver>> TStrategy>
         struct internal_piping<TObserver, TStrategy>
         {
             TObserver observer;
             TStrategy strategy;
 
             template<typename TRestStrategies>
-            auto operator|(TRestStrategies&& rest) &&
+            constexpr auto operator|(TRestStrategies&& rest) &&
             {
                 std::move(strategy).subscribe(std::move(observer), std::forward<TRestStrategies>(rest));
             }
@@ -43,15 +43,17 @@ namespace rpp
             TObserver observer;
 
             template<typename TStrategy>
-            auto operator|(TStrategy&& strategy) &&
+            constexpr auto operator|(TStrategy&& strategy) &&
             {
                 // if constexpr (rpp::constraint::operator_lift_with_disposable_strategy<TStrategy, value_type, typename base::expected_disposable_strategy>)
                 // m_strategies.subscribe(m_strategy.template lift_with_disposable_strategy<value_type, typename base::expected_disposable_strategy>(std::forward<Observer>(observer)));
                 // else
                 if constexpr (rpp::constraint::operator_lift<TStrategy, value_type>)
                     return internal_piping<decltype(std::forward<TStrategy>(strategy).template lift<value_type>(std::move(observer)))>{std::forward<TStrategy>(strategy).template lift<value_type>(std::move(observer))};
-                else
+                else if constexpr (rpp::constraint::operator_subscribe<TStrategy, value_type>)
                     return internal_piping<TObserver, std::decay_t<TStrategy>>{std::move(observer), std::forward<TStrategy>(strategy)};
+                else
+                    return std::forward<TStrategy>(strategy).subscribe(std::move(observer));
             }
         };
     }
@@ -63,7 +65,7 @@ namespace rpp
         // using operator_traits = typename TStrategy::template operator_traits<typename base::value_type>;
 
     public:
-        using expected_disposable_strategy = details::observables::default_disposable_strategy_selector; // details::observables::deduce_updated_disposable_strategy<TStrategy, typename base::expected_disposable_strategy>;
+        using expected_disposable_strategy = details::observables::fixed_disposable_strategy_selector<1>; // details::observables::deduce_updated_disposable_strategy<TStrategy, typename base::expected_disposable_strategy>;
         using value_type                   = int; // typename operator_traits::result_type;
 
         observable_chain_strategy(const TStrategies&... strategies)
