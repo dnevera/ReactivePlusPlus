@@ -56,20 +56,32 @@ namespace rpp
                     return std::forward<TStrategy>(strategy).subscribe(std::move(observer));
             }
         };
+
+        template<typename T>
+        struct internal_operator_traits {
+
+            template<typename TT>
+            constexpr decltype(auto) operator|(const internal_operator_traits<TT>&) {
+                return std::declval<typename T::template operator_traits<typename TT::value_type>::result_type>();
+            }
+
+            template<typename TT>
+            constexpr decltype(auto) operator|(const TT&) {
+                return std::declval<typename T::template operator_traits<TT>::result_type>();
+            }
+        };
     }
     template<typename... TStrategies>
+        requires (sizeof...(TStrategies) > 1)
     class observable_chain_strategy
     {
-        // using base = observable_chain_strategy<TStrategies...>;
-
-        // using operator_traits = typename TStrategy::template operator_traits<typename base::value_type>;
-
     public:
         template<typename... TT>
+            requires (sizeof...(TStrategies) > 1)
         friend class observable_chain_strategy;
 
         using expected_disposable_strategy = details::observables::fixed_disposable_strategy_selector<0>; // details::observables::deduce_updated_disposable_strategy<TStrategy, typename base::expected_disposable_strategy>;
-        using value_type                   = int; // typename operator_traits::result_type;
+        using value_type                   = std::decay_t<decltype((details::internal_operator_traits<TStrategies>{} | ... ))>;
 
         observable_chain_strategy(const TStrategies&... strategies)
             : m_strategies(strategies...)
