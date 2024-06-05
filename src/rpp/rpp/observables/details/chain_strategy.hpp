@@ -22,7 +22,6 @@ namespace rpp
         template<typename T>
         struct internal_operator_traits
         {
-
             template<typename TT>
             constexpr decltype(auto) operator|(const internal_operator_traits<TT>&)
             {
@@ -61,12 +60,12 @@ namespace rpp
         std::tuple<decltype(make_resulting_type<Tuple>( std::make_index_sequence<std::tuple_size_v<Tuple> - I>()))...> calculate_resulting_types(std::index_sequence<I...>);
     }
     template<typename... TStrategies>
-        requires (sizeof...(TStrategies) > 0)
+        requires (sizeof...(TStrategies) > 1)
     class observable_chain_strategy
     {
     public:
         template<typename... TT>
-            requires (sizeof...(TStrategies) > 0)
+            requires (sizeof...(TStrategies) > 1)
         friend class observable_chain_strategy;
 
         using strategies_tuple             = std::tuple<TStrategies...>;
@@ -138,9 +137,10 @@ namespace rpp
     private:
         static auto own_current_thread_if_needed()
         {
-            // if constexpr (requires { requires operator_traits::own_current_queue; })
-                // return rpp::schedulers::current_thread::own_queue_and_drain_finally_if_not_owned();
-            // else
+            using operator_traits = typename std::tuple_element_t<0, strategies_tuple>::template operator_traits<typename std::tuple_element_t<1, types_chain>::value_type>;
+            if constexpr (requires { requires operator_traits::own_current_queue; })
+                return rpp::schedulers::current_thread::own_queue_and_drain_finally_if_not_owned();
+            else
                 return rpp::utils::none{};
         }
 
