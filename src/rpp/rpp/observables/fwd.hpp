@@ -41,23 +41,12 @@ namespace rpp::details::observables
 
         static void subscribe(const auto&) {}
     };
-
-    struct fake_operator
-    {
-        template<typename Type>
-        struct operator_traits
-        {
-            using result_value = Type;
-        };
-
-        static void subscribe(const auto&) {}
-    };
 } // namespace rpp::details::observables
 
 namespace rpp
 {
     template<typename... TStrategies>
-        requires (sizeof...(TStrategies) > 1)
+        requires (sizeof...(TStrategies) > 0)
     class observable_chain_strategy;
 
     template<constraint::decayed_type Type, constraint::observable_strategy<Type> Strategy>
@@ -100,7 +89,7 @@ namespace rpp::constraint
                           && details::observables::constraint::disposable_strategy<details::observables::deduce_updated_disposable_strategy<std::decay_t<Op>, typename details::observables::default_disposable_strategy_selector>>;
 
     template<typename Op, typename Type>
-    concept operator_subscribe = operator_base<Op, Type> && requires(const Op& op, rpp::details::observers::fake_observer<typename std::decay_t<Op>::template operator_traits<Type>::result_type>&& observer, const observable_chain_strategy<details::observables::fake_operator, details::observables::fake_strategy<Type>>& chain) {
+    concept operator_subscribe = operator_base<Op, Type> && requires(const Op& op, rpp::details::observers::fake_observer<typename std::decay_t<Op>::template operator_traits<Type>::result_type>&& observer, const observable_chain_strategy<details::observables::fake_strategy<Type>>& chain) {
         {
             op.subscribe(std::move(observer), chain)
         };
