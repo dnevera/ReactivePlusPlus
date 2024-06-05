@@ -84,20 +84,21 @@ namespace rpp
         template<size_t I, typename...>
         struct internal_piping;
 
-        template<size_t I, rpp::constraint::observer TObserver, rpp::constraint::operator_subscribe<rpp::utils::extract_observer_type_t<TObserver>> TStrategy>
+        template<size_t I, rpp::constraint::observer_of_type<std::tuple_element_t<I, types_chain>> TObserver, rpp::constraint::operator_subscribe<rpp::utils::extract_observer_type_t<TObserver>> TStrategy>
         struct internal_piping<I, TObserver, TStrategy>
         {
+            using TRestStrategies = std::tuple_element_t<I+1, strategies_tuple>;
+
             TObserver observer;
             TStrategy strategy;
 
-            template<typename TRestStrategies>
-            constexpr auto operator|(TRestStrategies&& rest) &&
+            constexpr auto operator|(const TRestStrategies& rest) &&
             {
-                std::move(strategy).subscribe(std::move(observer), std::forward<TRestStrategies>(rest));
+                std::move(strategy).subscribe(std::move(observer), rest);
             }
         };
 
-        template<size_t I, rpp::constraint::observer TObserver>
+        template<size_t I, rpp::constraint::observer_of_type<std::tuple_element_t<I, types_chain>> TObserver>
         struct internal_piping<I, TObserver>
         {
             using TStrategy = std::tuple_element_t<I, strategies_tuple>;
@@ -112,7 +113,7 @@ namespace rpp
                     if constexpr (rpp::constraint::operator_lift<TStrategy, std::tuple_element_t<I+1, types_chain>>)
                         return internal_piping<I+1, decltype(strategy.template lift<std::tuple_element_t<I+1, types_chain>>(std::move(observer)))>{strategy.template lift<std::tuple_element_t<I+1, types_chain>>(std::move(observer))};
                     else
-                        return internal_piping<I+1, TObserver, std::decay_t<TStrategy>>{std::move(observer), strategy};
+                        return internal_piping<I, TObserver, std::decay_t<TStrategy>>{std::move(observer), strategy};
                 }
                 else
                     return strategy.subscribe(std::move(observer));
@@ -144,6 +145,7 @@ namespace rpp
     };
 
     template<typename New, typename... Args>
+        requires (!rpp::constraint::operator_subscribe<New, typename observable_chain_strategy<Args...>::value_type>)
     struct make_chain_observable<New, observable_chain_strategy<Args...>>
     {
         using type = observable_chain_strategy<New, Args...>;
