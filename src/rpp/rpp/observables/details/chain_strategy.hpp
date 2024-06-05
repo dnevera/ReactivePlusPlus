@@ -23,27 +23,28 @@ namespace rpp
         struct internal_operator_traits
         {
             template<typename TT>
-            constexpr decltype(auto) operator|(const internal_operator_traits<TT>&)
+            consteval auto operator|(const internal_operator_traits<TT>&)
             {
-                return std::declval<typename T::template operator_traits<typename TT::value_type>::result_type>();
+                return std::declval<typename T::template operator_traits<typename TT::value_type>>();
             }
 
             template<typename TT>
-            constexpr decltype(auto) operator|(const TT&)
+            consteval auto operator|(const TT&)
             {
-                return std::declval<typename T::template operator_traits<TT>::result_type>();
+                return std::declval<typename T::template operator_traits<typename TT::result_type>>();
             }
 
             template<typename TT>
-            constexpr details::observables::deduce_updated_disposable_strategy<T, rpp::details::observables::deduce_disposable_strategy_t<TT>> operator>>(const internal_operator_traits<TT>&);
+            consteval details::observables::deduce_updated_disposable_strategy<T, rpp::details::observables::deduce_disposable_strategy_t<TT>> operator>>(const internal_operator_traits<TT>&);
 
             template<typename TT>
-            constexpr details::observables::deduce_updated_disposable_strategy<T, TT> operator>>(const TT&);
+            consteval details::observables::deduce_updated_disposable_strategy<T, TT> operator>>(const TT&);
         };
 
         template<typename...Types>
         struct resulting_type {
-            using value_type = std::decay_t<decltype((details::internal_operator_traits<Types>{} | ... ))>;
+            using operator_traits = std::decay_t<decltype((details::internal_operator_traits<Types>{} | ... ))>;
+            using value_type = operator_traits::result_type;
             using expected_disposable_strategy = std::decay_t<decltype((details::internal_operator_traits<Types>{} >> ... ))>;
         };
 
@@ -54,10 +55,10 @@ namespace rpp
         };
 
         template<typename Tuple, size_t ...I>
-        resulting_type<std::tuple_element_t<std::tuple_size_v<Tuple>  - ((I,...)+1) + I, Tuple>...> make_resulting_type(std::index_sequence<I...>  v);
+        consteval resulting_type<std::tuple_element_t<std::tuple_size_v<Tuple>  - ((I,...)+1) + I, Tuple>...> make_resulting_type(std::index_sequence<I...>  v);
 
         template<typename Tuple, size_t ...I>
-        std::tuple<decltype(make_resulting_type<Tuple>( std::make_index_sequence<std::tuple_size_v<Tuple> - I>()))...> calculate_resulting_types(std::index_sequence<I...>);
+        consteval std::tuple<decltype(make_resulting_type<Tuple>( std::make_index_sequence<std::tuple_size_v<Tuple> - I>()))...> calculate_resulting_types(std::index_sequence<I...>);
     }
     template<typename... TStrategies>
         requires (sizeof...(TStrategies) > 1)
@@ -94,17 +95,18 @@ namespace rpp
         template<size_t I, typename...>
         struct internal_piping;
 
-        template<size_t I, rpp::constraint::observer_of_type<typename std::tuple_element_t<I, types_chain>::value_type> TObserver, rpp::constraint::operator_subscribe<rpp::utils::extract_observer_type_t<TObserver>> TStrategy>
-        struct internal_piping<I, TObserver, TStrategy>
+        template<size_t I, rpp::constraint::observer_of_type<typename std::tuple_element_t<I, types_chain>::value_type> TObserver>
+        struct internal_piping<I, TObserver, void>
         {
+            using TStrategy = std::tuple_element_t<I, strategies_tuple>;
             using TRestStrategies = std::tuple_element_t<I+1, strategies_tuple>;
 
             TObserver observer;
-            TStrategy strategy;
+            const TStrategy& strategy;
 
             constexpr auto operator|(const TRestStrategies& rest) &&
             {
-                std::move(strategy).subscribe(std::move(observer), rest);
+                strategy.subscribe(std::move(observer), rest);
             }
         };
 
@@ -122,7 +124,10 @@ namespace rpp
                     else if constexpr (rpp::constraint::operator_lift<TStrategy, typename std::tuple_element_t<I+1, types_chain>::value_type>)
                         return internal_piping<I+1, decltype(strategy.template lift<typename std::tuple_element_t<I+1, types_chain>::value_type>(std::move(observer)))>{strategy.template lift<typename std::tuple_element_t<I+1, types_chain>::value_type>(std::move(observer))};
                     else
-                        return internal_piping<I, TObserver, std::decay_t<TStrategy>>{std::move(observer), strategy};
+                    {
+                        static_assert(rpp::constraint::operator_subscribe<TStrategy, rpp::utils::extract_observer_type_t<TObserver>>);
+                        return internal_piping<I, TObserver, void>{std::move(observer), strategy};
+                    }
                 }
                 else
                     return strategy.subscribe(std::move(observer));
@@ -137,8 +142,7 @@ namespace rpp
     private:
         static auto own_current_thread_if_needed()
         {
-            using operator_traits = typename std::tuple_element_t<0, strategies_tuple>::template operator_traits<typename std::tuple_element_t<1, types_chain>::value_type>;
-            if constexpr (requires { requires operator_traits::own_current_queue; })
+            if constexpr (requires { requires std::tuple_element_t<0, types_chain>::operator_traits::own_current_queue; })
                 return rpp::schedulers::current_thread::own_queue_and_drain_finally_if_not_owned();
             else
                 return rpp::utils::none{};
