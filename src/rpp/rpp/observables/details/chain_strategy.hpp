@@ -106,11 +106,10 @@ namespace rpp
 
             constexpr auto operator|(const TStrategy& strategy) &&
             {
-                // if constexpr (rpp::constraint::operator_lift_with_disposable_strategy<TStrategy, std::tuple_element_t<I+1, types_chain>, typename base::expected_disposable_strategy>)
-                // m_strategies.subscribe(m_strategy.template lift_with_disposable_strategy<std::tuple_element_t<I+1, types_chain>, typename base::expected_disposable_strategy>(std::forward<Observer>(observer)));
-                // else
                 if constexpr (I + 1 < sizeof...(TStrategies)) {
-                    if constexpr (rpp::constraint::operator_lift<TStrategy, std::tuple_element_t<I+1, types_chain>>)
+                    if constexpr (rpp::constraint::operator_lift_with_disposable_strategy<TStrategy, std::tuple_element_t<I+1, types_chain>, typename base::expected_disposable_strategy>)
+                        return internal_piping<I+1, decltype(strategy.template lift_with_disposable_strategy<std::tuple_element_t<I+1, types_chain>, typename base::expected_disposable_strategy>(std::move(observer)));
+                    else if constexpr (rpp::constraint::operator_lift<TStrategy, std::tuple_element_t<I+1, types_chain>>)
                         return internal_piping<I+1, decltype(strategy.template lift<std::tuple_element_t<I+1, types_chain>>(std::move(observer)))>{strategy.template lift<std::tuple_element_t<I+1, types_chain>>(std::move(observer))};
                     else
                         return internal_piping<I, TObserver, std::decay_t<TStrategy>>{std::move(observer), strategy};
